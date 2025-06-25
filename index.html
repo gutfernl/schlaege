@@ -48,6 +48,54 @@
 </style>
 <div class="locate-me-btn" onclick="locateUser()">📍 Mein Standort</div>
 <script>
+let locationMarker;
+
+function locateUser() {
+  if (!navigator.geolocation) {
+    alert("Standort nicht verfügbar.");
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      const lat = position.coords.latitude;
+      const lng = position.coords.longitude;
+
+      if (locationMarker) {
+        map.removeLayer(locationMarker);
+      }
+
+      locationMarker = L.circleMarker([lat, lng], {
+        radius: 8,
+        color: 'blue',
+        fillColor: '#30f',
+        fillOpacity: 0.8
+      }).addTo(map).bindPopup("📍 Dein Standort").openPopup();
+
+      map.setView([lat, lng], 15);
+    },
+    (err) => {
+      alert("Standort konnte nicht ermittelt werden.");
+    }
+  );
+}
+</script>
+
+<style>
+.locate-me-btn {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 1000;
+  background: white;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-weight: bold;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  cursor: pointer;
+}
+</style>
+
+<script>
 function locateUser() {
   if (!navigator.geolocation) {
     alert("Standort nicht verfügbar.");
@@ -66,7 +114,6 @@ function locateUser() {
   );
 }
 </script>
-
 <div class="folium-map" id="map_7aa894bec9dcd97552f1b22dea8d6a9d"></div>
 <script src="https://unpkg.com/leaflet.locatecontrol/dist/L.Control.Locate.min.js"></script>
 <script>
