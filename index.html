@@ -81,16 +81,40 @@ const ctrl = L.control({position:'topleft'});
 ctrl.onAdd = function(){
   const wrap = L.DomUtil.create('div');
   const b1 = L.DomUtil.create('button','mapbtn',wrap); b1.innerHTML='⤢ Übersicht'; b1.title='Alle Schläge anzeigen';
-  const b2 = L.DomUtil.create('button','mapbtn icon',wrap); b2.innerHTML='📍'; b2.title='Mein Standort';
+  const b2 = L.DomUtil.create('button','mapbtn icon',wrap); b2.innerHTML='📍'; b2.title='Auf meinen Standort zentrieren';
   L.DomEvent.on(b1,'click',e=>{L.DomEvent.stop(e);deselect();map.fitBounds(allBounds.pad(0.08));});
-  L.DomEvent.on(b2,'click',e=>{L.DomEvent.stop(e);map.locate({setView:true,maxZoom:15});});
+  L.DomEvent.on(b2,'click',e=>{L.DomEvent.stop(e);centerOnMe();});
   return wrap;
 };
 ctrl.addTo(map);
-let meMarker=null;
-map.on('locationfound',e=>{ if(meMarker)map.removeLayer(meMarker);
-  meMarker=L.circleMarker(e.latlng,{radius:8,color:'#fff',weight:2,fillColor:'#1e6fe0',fillOpacity:1}).addTo(map);});
-map.on('locationerror',()=>alert('Standort nicht verfügbar. Ortungsdienst erlauben und die Seite über https öffnen.'));
+
+/* ---- Live-Standort (automatisch) ---- */
+let meMarker=null, meCircle=null, lastPos=null, watchId=null;
+function showMe(lat,lng,acc){
+  const ll=[lat,lng];
+  if(!meMarker){
+    meCircle=L.circle(ll,{radius:acc,color:'#1e6fe0',weight:1,fillColor:'#1e6fe0',fillOpacity:.12}).addTo(map);
+    meMarker=L.circleMarker(ll,{radius:8,color:'#fff',weight:3,fillColor:'#1e6fe0',fillOpacity:1}).addTo(map);
+    meMarker.bindTooltip('Mein Standort',{direction:'top'});
+  } else { meMarker.setLatLng(ll); meCircle.setLatLng(ll).setRadius(acc); }
+}
+function startTracking(centerFirst){
+  if(!('geolocation' in navigator)) return;
+  if(watchId!==null){ if(centerFirst) centerOnMe(); return; }
+  watchId = navigator.geolocation.watchPosition(
+    p=>{ lastPos=p.coords; showMe(p.coords.latitude,p.coords.longitude,p.coords.accuracy||20);
+         if(centerFirst){ map.setView([p.coords.latitude,p.coords.longitude],15); centerFirst=false; } },
+    _=>{ /* Auto-Start: Fehler still ignorieren, erst beim Knopfdruck melden */ },
+    {enableHighAccuracy:true, maximumAge:5000, timeout:20000}
+  );
+}
+function centerOnMe(){
+  if(lastPos){ map.setView([lastPos.latitude,lastPos.longitude],15); return; }
+  startTracking(true);
+  setTimeout(()=>{ if(!lastPos) alert('Standort noch nicht verfügbar. Bitte Standortfreigabe erlauben – die Seite muss über https (gutfernl.github.io) laufen.'); }, 1800);
+}
+/* beim Laden automatisch anzeigen, ohne die Übersicht zu verlassen */
+startTracking(false);
 
 /* ---- Schläge zeichnen ---- */
 const items = {};
