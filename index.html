@@ -72,6 +72,9 @@
   .modal-actions{display:flex;gap:10px;justify-content:flex-end}
   .modal-actions .mapbtn{height:38px;margin-top:0}
   .modal-actions .mapbtn.primary{background:#1e6fe0;color:#fff}
+  .toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;padding:10px 16px;border-radius:8px;font-size:14px;box-shadow:0 4px 20px rgba(0,0,0,.3);opacity:0;transition:opacity .25s, transform .25s;z-index:4000;max-width:90vw;text-align:center;pointer-events:none}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast-error{background:#c8102e}
 </style>
 </head>
 <body>
@@ -305,16 +308,24 @@ function stonePopupHtml(key, st){
   return '<div class="popup"><h3>🪨 Stein</h3><div class="sub">'+parts.join(' · ')+'</div>'+
     '<button class="mapbtn" style="width:100%;justify-content:center" onclick="deleteStone(\''+key+'\')">🗑 Geborgen – Markierung löschen</button></div>';
 }
+function showToast(msg, kind){
+  const t = document.createElement('div');
+  t.className = 'toast' + (kind==='error' ? ' toast-error' : '');
+  t.textContent = msg;
+  document.body.appendChild(t);
+  requestAnimationFrame(()=>t.classList.add('show'));
+  setTimeout(()=>{ t.classList.remove('show'); setTimeout(()=>t.remove(), 300); }, 6000);
+}
 function deleteStone(key){
   if(!confirm('Diesen Stein als geborgen markieren und die Markierung entfernen?')) return;
-  steineRef.child(key).remove().catch(err=>alert('Löschen fehlgeschlagen: '+err.message));
+  steineRef.child(key).remove().catch(err=>showToast('Löschen fehlgeschlagen: '+err.message, 'error'));
 }
 function deleteAllStones(){
   const pw = prompt('Masterpasswort zum Löschen ALLER Steine:');
   if(pw===null) return;
   if(pw!==MASTER_PASSWORD){ alert('Falsches Passwort.'); return; }
   if(!confirm('Wirklich ALLE '+currentStones.length+' Steine unwiderruflich löschen?')) return;
-  steineRef.remove().catch(err=>alert('Löschen fehlgeschlagen: '+err.message));
+  steineRef.remove().catch(err=>showToast('Löschen fehlgeschlagen: '+err.message, 'error'));
 }
 steineRef.on('value', snap=>{
   steineLayer.clearLayers();
@@ -355,19 +366,13 @@ document.getElementById('stoneTelelader').addEventListener('change', e=>{
 });
 document.getElementById('stoneCancel').addEventListener('click', closePlaceMarker);
 document.getElementById('stoneConfirm').addEventListener('click',()=>{
-  const btn = document.getElementById('stoneConfirm');
   const telelader = document.getElementById('stoneTelelader').checked;
   const ll = placeMarker.getLatLng();
   const schlag = findSchlagForPoint(ll.lat, ll.lng);
-  btn.disabled = true; btn.textContent = 'Speichere …';
+  closePlaceMarker();
   steineRef.push({ lat: ll.lat, lng: ll.lng, telelader: telelader, schlag: schlag, ts: firebase.database.ServerValue.TIMESTAMP })
-    .then(()=>{
-      btn.disabled = false; btn.textContent = 'Stein setzen';
-      closePlaceMarker();
-    })
     .catch(err=>{
-      btn.disabled = false; btn.textContent = 'Stein setzen';
-      alert('Der Stein konnte NICHT gespeichert werden – die Markierung ist noch nicht weg, versuch es nochmal.\n\nFehler: '+err.message+'\n\nHäufigste Ursache: Die Datenbankregeln im Firebase-Projekt wurden noch nicht veröffentlicht, oder es besteht keine Internetverbindung.');
+      showToast('Ein Stein konnte nicht gespeichert werden: '+err.message, 'error');
     });
 });
 document.getElementById('steineToggle').addEventListener('change', e=>{
