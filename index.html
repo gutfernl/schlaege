@@ -306,14 +306,15 @@ function stonePopupHtml(key, st){
     '<button class="mapbtn" style="width:100%;justify-content:center" onclick="deleteStone(\''+key+'\')">🗑 Geborgen – Markierung löschen</button></div>';
 }
 function deleteStone(key){
-  if(confirm('Diesen Stein als geborgen markieren und die Markierung entfernen?')) steineRef.child(key).remove();
+  if(!confirm('Diesen Stein als geborgen markieren und die Markierung entfernen?')) return;
+  steineRef.child(key).remove().catch(err=>alert('Löschen fehlgeschlagen: '+err.message));
 }
 function deleteAllStones(){
   const pw = prompt('Masterpasswort zum Löschen ALLER Steine:');
   if(pw===null) return;
   if(pw!==MASTER_PASSWORD){ alert('Falsches Passwort.'); return; }
   if(!confirm('Wirklich ALLE '+currentStones.length+' Steine unwiderruflich löschen?')) return;
-  steineRef.remove();
+  steineRef.remove().catch(err=>alert('Löschen fehlgeschlagen: '+err.message));
 }
 steineRef.on('value', snap=>{
   steineLayer.clearLayers();
@@ -354,11 +355,20 @@ document.getElementById('stoneTelelader').addEventListener('change', e=>{
 });
 document.getElementById('stoneCancel').addEventListener('click', closePlaceMarker);
 document.getElementById('stoneConfirm').addEventListener('click',()=>{
+  const btn = document.getElementById('stoneConfirm');
   const telelader = document.getElementById('stoneTelelader').checked;
   const ll = placeMarker.getLatLng();
   const schlag = findSchlagForPoint(ll.lat, ll.lng);
-  steineRef.push({ lat: ll.lat, lng: ll.lng, telelader: telelader, schlag: schlag, ts: firebase.database.ServerValue.TIMESTAMP });
-  closePlaceMarker();
+  btn.disabled = true; btn.textContent = 'Speichere …';
+  steineRef.push({ lat: ll.lat, lng: ll.lng, telelader: telelader, schlag: schlag, ts: firebase.database.ServerValue.TIMESTAMP })
+    .then(()=>{
+      btn.disabled = false; btn.textContent = 'Stein setzen';
+      closePlaceMarker();
+    })
+    .catch(err=>{
+      btn.disabled = false; btn.textContent = 'Stein setzen';
+      alert('Der Stein konnte NICHT gespeichert werden – die Markierung ist noch nicht weg, versuch es nochmal.\n\nFehler: '+err.message+'\n\nHäufigste Ursache: Die Datenbankregeln im Firebase-Projekt wurden noch nicht veröffentlicht, oder es besteht keine Internetverbindung.');
+    });
 });
 document.getElementById('steineToggle').addEventListener('change', e=>{
   const on = e.target.checked;
