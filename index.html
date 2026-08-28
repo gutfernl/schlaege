@@ -331,22 +331,31 @@ function deleteAllStones(){
 let currentStoneMarkers = {};
 window.debugSteine = function(){
   const z = map.getZoom();
-  console.log('--- debugSteine @ Zoom '+z+' ---');
+  const rows = [];
+  let i = 0;
   Object.keys(currentStoneMarkers).forEach(key=>{
+    i++;
     const m = currentStoneMarkers[key];
     const ll = m.getLatLng();
-    const leafletPt = map.latLngToContainerPoint(ll);
-    const rect = m._icon ? m._icon.getBoundingClientRect() : null;
-    const mapRect = map.getContainer().getBoundingClientRect();
-    const domPt = rect ? {x: (rect.left+rect.right)/2 - mapRect.left, y: (rect.top+rect.bottom)/2 - mapRect.top} : null;
-    console.log(key, {
-      latlng: [ll.lat, ll.lng],
-      leaflet_berechnet: {x: Math.round(leafletPt.x), y: Math.round(leafletPt.y)},
-      dom_tatsaechlich: domPt ? {x: Math.round(domPt.x), y: Math.round(domPt.y)} : 'kein Icon',
-      abweichung_px: domPt ? Math.round(Math.hypot(leafletPt.x-domPt.x, leafletPt.y-domPt.y)) : null
+    const frisch = map.latLngToLayerPoint(ll).round(); // pane-relativ, frisch berechnet
+    let roh = null;
+    if(m._icon && m._icon.style.transform){
+      const mm = m._icon.style.transform.match(/translate3d\(([-\d.]+)px,\s*([-\d.]+)px/);
+      if(mm) roh = {x: Math.round(parseFloat(mm[1])), y: Math.round(parseFloat(mm[2]))};
+    }
+    rows.push({
+      idx: i,
+      key: key,
+      schlag: (currentStones.find(s=>s.key===key)||{}).schlag || '',
+      lat: ll.lat.toFixed(6), lng: ll.lng.toFixed(6),
+      leaflet_jetzt_x: frisch.x, leaflet_jetzt_y: frisch.y,
+      icon_transform_x: roh ? roh.x : 'n/a', icon_transform_y: roh ? roh.y : 'n/a',
+      abweichung_px: roh ? Math.round(Math.hypot(frisch.x-roh.x, frisch.y-roh.y)) : 'n/a'
     });
   });
-  console.log('--- Ende ---');
+  console.log('=== debugSteine @ Zoom '+z+' | Kartenmitte: '+map.getCenter().lat.toFixed(5)+','+map.getCenter().lng.toFixed(5)+' ===');
+  console.table(rows);
+  return rows;
 };
 steineRef.on('value', snap=>{
   steineLayer.clearLayers();
