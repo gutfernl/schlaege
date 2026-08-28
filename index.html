@@ -61,6 +61,8 @@
   body.steine-active .steine-only{display:flex !important}
   .stone-icon{position:relative;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6))}
   .stone-icon.telelader{filter:drop-shadow(0 1px 2px rgba(245,130,49,.95)) drop-shadow(0 0 4px rgba(245,130,49,.8))}
+  .stone-lbl{background:rgba(200,16,46,.92);color:#fff;border-radius:4px;padding:1px 5px;font-size:11px;font-weight:700;white-space:nowrap;border:none;box-shadow:0 1px 3px rgba(0,0,0,.5)}
+  .stone-lbl:before{display:none !important}
   .modal-overlay{position:fixed;left:50%;top:66px;transform:translateX(-50%);display:none;z-index:2500;width:min(320px,92vw)}
   .modal-overlay.show{display:block}
   .modal{background:#fff;border-radius:12px;padding:20px;box-shadow:0 8px 30px rgba(0,0,0,.35)}
@@ -166,6 +168,15 @@ function centerOnMe(){
 /* beim Laden automatisch anzeigen, ohne die Übersicht zu verlassen */
 startTracking(false);
 /* ---- Schläge zeichnen ---- */
+/* Randdicke haengt vom Zoom ab: bei starkem Herauszoomen entspricht die feste
+   Pixel-Strichbreite sonst hunderten Metern in der Realitaet und "verschluckt"
+   Punkte, die eigentlich klar innerhalb der Grenze liegen. */
+function schlagWeightForZoom(z){
+  if(z>=17) return 2.5;
+  if(z>=15) return 1.6;
+  if(z>=13) return 1.0;
+  return 0.6;
+}
 const items = {};
 const allPts = [];
 SCHLAEGE.forEach(s=>{
@@ -216,9 +227,10 @@ function refreshLabels(){
 }
 map.on('zoomend moveend', refreshLabels);
 refreshLabels();
+refreshSchlagWeights();
 /* ---- Auswahl ---- */
 function select(name){
-  if(sel && items[sel]){ items[sel].poly.setStyle({color:'#c8102e',weight:2.5,fillColor:blockColor(items[sel].s.b),fillOpacity:.18}); items[sel].row?.classList.remove('sel'); }
+  if(sel && items[sel]){ items[sel].poly.setStyle({color:'#c8102e',weight:schlagWeightForZoom(map.getZoom()),fillColor:blockColor(items[sel].s.b),fillOpacity:.18}); items[sel].row?.classList.remove('sel'); }
   sel = name;
   const it = items[name]; if(!it) return;
   it.poly.setStyle({color:'#8a6d00',weight:4,fillColor:'#ffcc00',fillOpacity:.5});
@@ -230,9 +242,17 @@ function select(name){
   if(window.innerWidth<=760) map.getContainer().scrollIntoView({behavior:'smooth',block:'start'});
 }
 function deselect(){
-  if(sel && items[sel]){ items[sel].poly.setStyle({color:'#c8102e',weight:2.5,fillColor:blockColor(items[sel].s.b),fillOpacity:.18}); items[sel].row?.classList.remove('sel'); }
+  if(sel && items[sel]){ items[sel].poly.setStyle({color:'#c8102e',weight:schlagWeightForZoom(map.getZoom()),fillColor:blockColor(items[sel].s.b),fillOpacity:.18}); items[sel].row?.classList.remove('sel'); }
   sel=null; map.closePopup(); refreshLabels();
 }
+function refreshSchlagWeights(){
+  const w = schlagWeightForZoom(map.getZoom());
+  Object.keys(items).forEach(name=>{
+    if(name===sel) return; // ausgewaehlter Schlag behaelt seine Hervorhebung
+    items[name].poly.setStyle({weight:w});
+  });
+}
+map.on('zoomend', refreshSchlagWeights);
 /* ---- Tabelle: nach Block gruppiert ---- */
 const tbody = document.getElementById('tbody');
 const noresult = document.getElementById('noresult');
@@ -373,6 +393,7 @@ steineRef.on('value', snap=>{
     if(st.schlag) counts[st.schlag] = (counts[st.schlag]||0)+1;
     const m = L.marker([st.lat, st.lng], {icon: stoneIcon(!!st.telelader)})
       .bindPopup(stonePopupHtml(key, st))
+      .bindTooltip(st.schlag || 'Kein Schlag', {direction:'bottom', offset:[0,6], className:'stone-lbl'})
       .addTo(steineLayer);
     currentStoneMarkers[key] = m;
   });
@@ -432,4 +453,4 @@ window.addEventListener('orientationchange', ()=>setTimeout(fixSize,300));
 setTimeout(fixSize,200);
 </script>
 </body>
-</html> Das war die Schlagkarte um unsere Schläge zu suchen und dorthin zu navigieren für die Entehelfer. Sie ist bei Github "gehosted" Ich möchte Die gerne um einen Ebene erweitern die man per Schalter einblenden kann. Die Ebene heisst "Steine". Ein Mitarbeiter soll dort einen Standort eintragen können. Dazu soll er seinen aktuellen Standort makieren können und ggf. noch ein kenneeichnungsfeld "Für Telelader" auswählen können. Birgt ein anderer Mitarbeiter den Stein, soll eine Markierung ausgewählt und geläschter werden können. ISt die Ebnen Steine eingeblendet, soll in der Schlagliste eine zusätliche Spate mit der anzahl an Markierungen erscheinen. Über ein Masterpasswort kann ich alle Stein löschen. Bitte überlege eine elegante Umsetzung und mache einen Vorschlag.
+</html>
