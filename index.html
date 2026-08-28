@@ -59,9 +59,8 @@
   td.stonecount{text-align:center;font-weight:600;white-space:nowrap}
   .steine-only{display:none !important}
   body.steine-active .steine-only{display:flex !important}
-  .stone-icon{position:relative;font-size:20px;line-height:26px;text-align:center;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6))}
+  .stone-icon{position:relative;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6))}
   .stone-icon.telelader{filter:drop-shadow(0 1px 2px rgba(245,130,49,.95)) drop-shadow(0 0 4px rgba(245,130,49,.8))}
-  .stone-icon .badge{position:absolute;top:-2px;right:-6px;background:#f58231;color:#fff;font-size:9px;font-weight:800;border-radius:4px;padding:0 3px;line-height:13px;box-shadow:0 1px 2px rgba(0,0,0,.4)}
   .modal-overlay{position:fixed;left:50%;top:66px;transform:translateX(-50%);display:none;z-index:2500;width:min(320px,92vw)}
   .modal-overlay.show{display:block}
   .modal{background:#fff;border-radius:12px;padding:20px;box-shadow:0 8px 30px rgba(0,0,0,.35)}
@@ -290,10 +289,16 @@ function findSchlagForPoint(lat,lng){
   return null;
 }
 function stoneIcon(telelader){
+  const fill = telelader ? '#f58231' : '#ffffff';
+  const svg = '<svg width="24" height="24" viewBox="0 0 24 24" style="display:block;overflow:visible">'
+    + '<line x1="12" y1="0" x2="12" y2="24" stroke="#1b2d4f" stroke-width="1.5"/>'
+    + '<line x1="0" y1="12" x2="24" y2="12" stroke="#1b2d4f" stroke-width="1.5"/>'
+    + '<circle cx="12" cy="12" r="5" fill="'+fill+'" stroke="#1b2d4f" stroke-width="1.5"/>'
+    + '</svg>';
   return L.divIcon({
     className:'stone-icon'+(telelader?' telelader':''),
-    html:'🪨'+(telelader?'<span class="badge">T</span>':''),
-    iconSize:[26,26], iconAnchor:[13,13]
+    html:svg,
+    iconSize:[24,24], iconAnchor:[12,12]
   });
 }
 function formatTs(ts){
