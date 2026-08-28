@@ -62,9 +62,9 @@
   .stone-icon{position:relative;font-size:20px;line-height:26px;text-align:center;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6))}
   .stone-icon.telelader{filter:drop-shadow(0 1px 2px rgba(245,130,49,.95)) drop-shadow(0 0 4px rgba(245,130,49,.8))}
   .stone-icon .badge{position:absolute;top:-2px;right:-6px;background:#f58231;color:#fff;font-size:9px;font-weight:800;border-radius:4px;padding:0 3px;line-height:13px;box-shadow:0 1px 2px rgba(0,0,0,.4)}
-  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:3000;padding:16px}
-  .modal-overlay.show{display:flex}
-  .modal{background:#fff;border-radius:12px;padding:20px;width:min(320px,100%);box-shadow:0 8px 30px rgba(0,0,0,.35)}
+  .modal-overlay{position:fixed;left:50%;top:66px;transform:translateX(-50%);display:none;z-index:2500;width:min(320px,92vw)}
+  .modal-overlay.show{display:block}
+  .modal{background:#fff;border-radius:12px;padding:20px;box-shadow:0 8px 30px rgba(0,0,0,.35)}
   .modal h3{margin:0 0 6px;font-size:17px;color:var(--ink)}
   .modal .sub{color:var(--muted);font-size:13px;margin:0 0 14px}
   .modal .checkline{display:flex;align-items:center;gap:8px;font-size:14px;margin-bottom:18px;cursor:pointer}
@@ -72,6 +72,9 @@
   .modal-actions{display:flex;gap:10px;justify-content:flex-end}
   .modal-actions .mapbtn{height:38px;margin-top:0}
   .modal-actions .mapbtn.primary{background:#1e6fe0;color:#fff}
+  .toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;padding:10px 16px;border-radius:8px;font-size:14px;box-shadow:0 4px 20px rgba(0,0,0,.3);opacity:0;transition:opacity .25s, transform .25s;z-index:4000;max-width:90vw;text-align:center;pointer-events:none}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast-error{background:#c8102e}
 </style>
 </head>
 <body>
@@ -82,7 +85,7 @@
     <label class="switch" title="Steine-Ebene ein-/ausblenden">
       <input type="checkbox" id="steineToggle">
       <span class="slider"></span>
-      <span class="swtext">🪨 Steine</span>
+      <span class="swicon">🪨</span><span class="swtext">Steine</span>
     </label>
   </header>
   <div class="body">
@@ -100,6 +103,7 @@
   <div class="modal">
     <h3>🪨 Stein markieren</h3>
     <p class="sub" id="stoneModalPos">Position wird ermittelt …</p>
+    <p class="sub" style="margin-top:-10px">📍 Markierung auf der Karte per Ziehen verschiebbar</p>
     <label class="checkline"><input type="checkbox" id="stoneTelelader"> Für Telelader kennzeichnen</label>
     <div class="modal-actions">
       <button class="mapbtn" id="stoneCancel">Abbrechen</button>
@@ -263,10 +267,8 @@ const firebaseConfig = {
   messagingSenderId: "35210777015",
   appId: "1:35210777015:web:57eed125e5e872654ed832"
 };
-// TODO: Eigenes Masterpasswort setzen. Hinweis: Der Quelltext ist auf GitHub Pages öffentlich einsehbar,
-// dieses Passwort schützt daher nur vor versehentlichem/unautorisiertem Löschen durch Mitarbeiter,
-// nicht vor jemandem, der gezielt den Quelltext liest. Für echten Schutz zusätzlich Firebase-Regeln nutzen
-// (siehe Einrichtungsanleitung).
+// Hinweis: Der Quelltext ist auf GitHub Pages öffentlich einsehbar, dieses Passwort schützt daher nur vor
+// versehentlichem/unautorisiertem Löschen durch Mitarbeiter, nicht vor jemandem, der gezielt den Quelltext liest.
 const MASTER_PASSWORD = "11051976";
 
 firebase.initializeApp(firebaseConfig);
@@ -304,15 +306,24 @@ function stonePopupHtml(key, st){
   return '<div class="popup"><h3>🪨 Stein</h3><div class="sub">'+parts.join(' · ')+'</div>'+
     '<button class="mapbtn" style="width:100%;justify-content:center" onclick="deleteStone(\''+key+'\')">🗑 Geborgen – Markierung löschen</button></div>';
 }
+function showToast(msg, kind){
+  const t = document.createElement('div');
+  t.className = 'toast' + (kind==='error' ? ' toast-error' : '');
+  t.textContent = msg;
+  document.body.appendChild(t);
+  requestAnimationFrame(()=>t.classList.add('show'));
+  setTimeout(()=>{ t.classList.remove('show'); setTimeout(()=>t.remove(), 300); }, 6000);
+}
 function deleteStone(key){
-  if(confirm('Diesen Stein als geborgen markieren und die Markierung entfernen?')) steineRef.child(key).remove();
+  if(!confirm('Diesen Stein als geborgen markieren und die Markierung entfernen?')) return;
+  steineRef.child(key).remove().catch(err=>showToast('Löschen fehlgeschlagen: '+err.message, 'error'));
 }
 function deleteAllStones(){
   const pw = prompt('Masterpasswort zum Löschen ALLER Steine:');
   if(pw===null) return;
   if(pw!==MASTER_PASSWORD){ alert('Falsches Passwort.'); return; }
   if(!confirm('Wirklich ALLE '+currentStones.length+' Steine unwiderruflich löschen?')) return;
-  steineRef.remove();
+  steineRef.remove().catch(err=>showToast('Löschen fehlgeschlagen: '+err.message, 'error'));
 }
 steineRef.on('value', snap=>{
   steineLayer.clearLayers();
@@ -330,18 +341,37 @@ steineRef.on('value', snap=>{
   document.getElementById('thSteine').textContent = '🪨' + (currentStones.length? (' ('+currentStones.length+')') : '');
   buildRows(document.getElementById('q').value);
 });
+let placeMarker = null;
+function updatePlacePos(){
+  const ll = placeMarker.getLatLng();
+  document.getElementById('stoneModalPos').textContent = 'Position: '+ll.lat.toFixed(5)+', '+ll.lng.toFixed(5);
+}
+function closePlaceMarker(){
+  if(placeMarker){ map.removeLayer(placeMarker); placeMarker=null; }
+  document.getElementById('stoneModal').classList.remove('show');
+}
 function openStoneModal(){
   if(!lastPos){ alert('Dein Standort ist noch nicht verfügbar. Bitte Standortfreigabe erlauben.'); startTracking(true); return; }
   document.getElementById('stoneTelelader').checked = false;
-  document.getElementById('stoneModalPos').textContent = 'Position: '+lastPos.latitude.toFixed(5)+', '+lastPos.longitude.toFixed(5)+' (±'+Math.round(lastPos.accuracy||0)+' m)';
+  if(placeMarker) map.removeLayer(placeMarker);
+  placeMarker = L.marker([lastPos.latitude, lastPos.longitude], {icon: stoneIcon(false), draggable:true, autoPan:true}).addTo(map);
+  placeMarker.on('drag', updatePlacePos);
+  updatePlacePos();
   document.getElementById('stoneModal').classList.add('show');
 }
-document.getElementById('stoneCancel').addEventListener('click',()=>{ document.getElementById('stoneModal').classList.remove('show'); });
+document.getElementById('stoneTelelader').addEventListener('change', e=>{
+  if(placeMarker) placeMarker.setIcon(stoneIcon(e.target.checked));
+});
+document.getElementById('stoneCancel').addEventListener('click', closePlaceMarker);
 document.getElementById('stoneConfirm').addEventListener('click',()=>{
   const telelader = document.getElementById('stoneTelelader').checked;
-  const schlag = findSchlagForPoint(lastPos.latitude, lastPos.longitude);
-  steineRef.push({ lat: lastPos.latitude, lng: lastPos.longitude, telelader: telelader, schlag: schlag, ts: firebase.database.ServerValue.TIMESTAMP });
-  document.getElementById('stoneModal').classList.remove('show');
+  const ll = placeMarker.getLatLng();
+  const schlag = findSchlagForPoint(ll.lat, ll.lng);
+  closePlaceMarker();
+  steineRef.push({ lat: ll.lat, lng: ll.lng, telelader: telelader, schlag: schlag, ts: firebase.database.ServerValue.TIMESTAMP })
+    .catch(err=>{
+      showToast('Ein Stein konnte nicht gespeichert werden: '+err.message, 'error');
+    });
 });
 document.getElementById('steineToggle').addEventListener('change', e=>{
   const on = e.target.checked;
