@@ -103,7 +103,7 @@
   <div class="modal">
     <h3>🪨 Stein markieren</h3>
     <p class="sub" id="stoneModalPos">Position wird ermittelt …</p>
-    <p class="sub" style="margin-top:-10px">📍 Markierung auf der Karte per Ziehen verschiebbar</p>
+    <p class="sub" style="margin-top:-10px">📍 Markierung auf der Karte per Ziehen verschiebbar – der orangene Kreis zeigt, wie ungenau der GPS-Standort ist (z. B. unter Bäumen). Stein am besten an die echte Stelle ziehen.</p>
     <label class="checkline"><input type="checkbox" id="stoneTelelader"> Für Telelader kennzeichnen</label>
     <div class="modal-actions">
       <button class="mapbtn" id="stoneCancel">Abbrechen</button>
@@ -303,7 +303,10 @@ function stonePopupHtml(key, st){
   const parts = [ st.schlag ? ('Schlag: '+st.schlag) : 'Kein Schlag zugeordnet' ];
   if(st.telelader) parts.push('🚜 Für Telelader');
   if(st.ts) parts.push(formatTs(st.ts));
+  const gmaps = 'https://www.google.com/maps/search/?api=1&query='+st.lat+','+st.lng;
   return '<div class="popup"><h3>🪨 Stein</h3><div class="sub">'+parts.join(' · ')+'</div>'+
+    '<div class="sub" style="font-family:monospace">'+st.lat.toFixed(6)+', '+st.lng.toFixed(6)+
+    ' <a href="'+gmaps+'" target="_blank" rel="noopener">↗ in Google Maps</a></div>'+
     '<button class="mapbtn" style="width:100%;justify-content:center" onclick="deleteStone(\''+key+'\')">🗑 Geborgen – Markierung löschen</button></div>';
 }
 function showToast(msg, kind){
@@ -325,35 +328,63 @@ function deleteAllStones(){
   if(!confirm('Wirklich ALLE '+currentStones.length+' Steine unwiderruflich löschen?')) return;
   steineRef.remove().catch(err=>showToast('Löschen fehlgeschlagen: '+err.message, 'error'));
 }
+let currentStoneMarkers = {};
+window.debugSteine = function(){
+  const z = map.getZoom();
+  console.log('--- debugSteine @ Zoom '+z+' ---');
+  Object.keys(currentStoneMarkers).forEach(key=>{
+    const m = currentStoneMarkers[key];
+    const ll = m.getLatLng();
+    const leafletPt = map.latLngToContainerPoint(ll);
+    const rect = m._icon ? m._icon.getBoundingClientRect() : null;
+    const mapRect = map.getContainer().getBoundingClientRect();
+    const domPt = rect ? {x: (rect.left+rect.right)/2 - mapRect.left, y: (rect.top+rect.bottom)/2 - mapRect.top} : null;
+    console.log(key, {
+      latlng: [ll.lat, ll.lng],
+      leaflet_berechnet: {x: Math.round(leafletPt.x), y: Math.round(leafletPt.y)},
+      dom_tatsaechlich: domPt ? {x: Math.round(domPt.x), y: Math.round(domPt.y)} : 'kein Icon',
+      abweichung_px: domPt ? Math.round(Math.hypot(leafletPt.x-domPt.x, leafletPt.y-domPt.y)) : null
+    });
+  });
+  console.log('--- Ende ---');
+};
 steineRef.on('value', snap=>{
   steineLayer.clearLayers();
   currentStones = [];
+  currentStoneMarkers = {};
   const counts = {};
   snap.forEach(child=>{
     const st = child.val(), key = child.key;
     currentStones.push(Object.assign({key:key}, st));
     if(st.schlag) counts[st.schlag] = (counts[st.schlag]||0)+1;
-    L.marker([st.lat, st.lng], {icon: stoneIcon(!!st.telelader)})
+    const m = L.marker([st.lat, st.lng], {icon: stoneIcon(!!st.telelader)})
       .bindPopup(stonePopupHtml(key, st))
       .addTo(steineLayer);
+    currentStoneMarkers[key] = m;
   });
   steineCounts = counts;
   document.getElementById('thSteine').textContent = '🪨' + (currentStones.length? (' ('+currentStones.length+')') : '');
   buildRows(document.getElementById('q').value);
 });
 let placeMarker = null;
+let placeAccCircle = null;
+let placeAccM = 0;
 function updatePlacePos(){
   const ll = placeMarker.getLatLng();
-  document.getElementById('stoneModalPos').textContent = 'Position: '+ll.lat.toFixed(5)+', '+ll.lng.toFixed(5);
+  document.getElementById('stoneModalPos').textContent = 'Position: '+ll.lat.toFixed(5)+', '+ll.lng.toFixed(5)+(placeAccM? ' (GPS-Genauigkeit: ±'+Math.round(placeAccM)+' m)':'');
 }
 function closePlaceMarker(){
   if(placeMarker){ map.removeLayer(placeMarker); placeMarker=null; }
+  if(placeAccCircle){ map.removeLayer(placeAccCircle); placeAccCircle=null; }
   document.getElementById('stoneModal').classList.remove('show');
 }
 function openStoneModal(){
   if(!lastPos){ alert('Dein Standort ist noch nicht verfügbar. Bitte Standortfreigabe erlauben.'); startTracking(true); return; }
   document.getElementById('stoneTelelader').checked = false;
   if(placeMarker) map.removeLayer(placeMarker);
+  if(placeAccCircle) map.removeLayer(placeAccCircle);
+  placeAccM = lastPos.accuracy || 0;
+  placeAccCircle = L.circle([lastPos.latitude, lastPos.longitude], {radius:placeAccM, color:'#f58231', weight:1, dashArray:'4,4', fillColor:'#f58231', fillOpacity:.10, interactive:false}).addTo(map);
   placeMarker = L.marker([lastPos.latitude, lastPos.longitude], {icon: stoneIcon(false), draggable:true, autoPan:true}).addTo(map);
   placeMarker.on('drag', updatePlacePos);
   updatePlacePos();
@@ -387,4 +418,4 @@ window.addEventListener('orientationchange', ()=>setTimeout(fixSize,300));
 setTimeout(fixSize,200);
 </script>
 </body>
-</html> 
+</html> Das war die Schlagkarte um unsere Schläge zu suchen und dorthin zu navigieren für die Entehelfer. Sie ist bei Github "gehosted" Ich möchte Die gerne um einen Ebene erweitern die man per Schalter einblenden kann. Die Ebene heisst "Steine". Ein Mitarbeiter soll dort einen Standort eintragen können. Dazu soll er seinen aktuellen Standort makieren können und ggf. noch ein kenneeichnungsfeld "Für Telelader" auswählen können. Birgt ein anderer Mitarbeiter den Stein, soll eine Markierung ausgewählt und geläschter werden können. ISt die Ebnen Steine eingeblendet, soll in der Schlagliste eine zusätliche Spate mit der anzahl an Markierungen erscheinen. Über ein Masterpasswort kann ich alle Stein löschen. Bitte überlege eine elegante Umsetzung und mache einen Vorschlag.
