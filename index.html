@@ -59,7 +59,16 @@
   td.stonecount{text-align:center;font-weight:600;white-space:nowrap}
   .steine-only{display:none !important}
   body.steine-active .steine-only{display:flex !important}
-  .stone-icon{position:relative;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6))}
+  /* WICHTIG: hier KEIN eigenes "position" setzen! Leaflet positioniert Marker-Icons per
+     CSS-Klasse .leaflet-marker-icon mit position:absolute + transform:translate3d(...).
+     Ein "position:relative" auf .stone-icon (so wie es hier bis eben stand) ueberschreibt
+     das und laesst den Browser das Icon zusaetzlich im normalen Dokumentfluss innerhalb
+     des Marker-Panes einordnen -- der tatsaechlich gerenderte Punkt landet dann je nach
+     Position unter den Geschwister-Icons um mehrere Pixel (real: mehrere Meter) neben der
+     via transform gesetzten, korrekten Koordinate. Das SVG-Rendering der Feldgrenzen (und
+     jetzt auch des Kreuzes) ist davon nicht betroffen, weil es komplett anders funktioniert
+     -- genau das war der Unterschied "Punkt vs. Polygon", den Konrad vermutet hat. */
+  .stone-icon{filter:drop-shadow(0 1px 2px rgba(0,0,0,.6))}
   .stone-icon.telelader{filter:drop-shadow(0 1px 2px rgba(245,130,49,.95)) drop-shadow(0 0 4px rgba(245,130,49,.8))}
   .stone-lbl{background:rgba(200,16,46,.92);color:#fff;border-radius:4px;padding:1px 5px;font-size:11px;font-weight:700;white-space:nowrap;border:none;box-shadow:0 1px 3px rgba(0,0,0,.5)}
   .stone-lbl:before{display:none !important}
@@ -567,7 +576,17 @@ steineRef.on('value', snap=>{
       .bindPopup(stonePopupHtml(key, st))
       .bindTooltip(st.schlag || 'Kein Schlag', {direction:'bottom', offset:[0,6], className:'stone-lbl'})
       .addTo(steineLayer);
-    m.dragging.disable(); // per Default nicht ziehbar, nur waehrend "Position korrigieren"
+    /* Bugfix: Leaflet legt m.dragging erst in onAdd() an -- das passiert bei einem Marker
+       in einer LayerGroup aber erst, wenn die Gruppe SELBST auf der Karte ist. Beim allerersten
+       Laden der Seite ist der "Steine"-Schalter noch aus (steineLayer noch nicht auf der Karte),
+       darum war m.dragging an dieser Stelle undefined und der direkte disable()-Aufruf hat mit
+       einer TypeError die gesamte forEach-Schleife abgebrochen -- dadurch wurden GAR KEINE
+       Steine mehr geladen, bis die Seite neu aktualisiert wurde. Der 'add'-Event-Handler
+       greift zuverlaessig in beiden Faellen (Gruppe schon auf der Karte oder erst spaeter
+       per Schalter zugefuegt).
+    */
+    m.on('add', ()=>{ m.dragging.disable(); });
+    if(m.dragging) m.dragging.disable(); // per Default nicht ziehbar, nur waehrend "Position korrigieren"
     addStoneCross(key, st.lat, st.lng, !!st.telelader);
     m.on('drag', ()=>{ const ll=m.getLatLng(); updateStoneCross(key, ll.lat, ll.lng); }); // Kreuz folgt live waehrend "Position korrigieren"
     currentStoneMarkers[key] = m;
